@@ -1,0 +1,21 @@
+usage example:
+
+import "iptree"
+
+func main() {
+    ip1 = 192.168.1.1/32
+    ip2 = 192.168.1.0/24
+    v1 = 1
+    v2 = 2
+
+    tree := iptree.New()
+    tree.Insert(ip1, v1)
+    iptree.Insert(tree, ip2, v2)
+    
+    iptree.Find(tree, ip1) // = v1
+    tree.Find(ip2) // = v2
+    tree.Find(1.2.3.4) // = nil, ErrNotFound
+
+    tree.Remove(ip1)
+    iptree.Remove(tree, ip2)
+}

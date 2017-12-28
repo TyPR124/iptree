@@ -87,13 +87,30 @@ func (n *node) Remove(ipnet net.IPNet) error {
 	return ErrRemovedRoot{n.children}
 }
 
-func (n *node) Traverse(f TraversalFunc) {
-	n.traverseRecursively(f, 0)
+func (n *node) Traverse(f Traverser) error {
+	return n.traverseRecursively(f, 0)
 }
 
-func (n *node) traverseRecursively(f TraversalFunc, dist int) {
-	f(n.IPNet, n.value, dist)
-	for _, c := range n.children {
-		c.traverseRecursively(f, dist+1)
+func (n *node) traverseRecursively(f Traverser, dist int) error {
+	if err := f(n.IPNet, n.value, dist); err != nil {
+		return err
 	}
+	for _, c := range n.children {
+		if err := c.traverseRecursively(f, dist+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *node) GetIPLength() int {
+	return len(n.IP)
+}
+
+func (n *node) Count() int {
+	count := 0
+	for _, c := range n.children {
+		count += c.Count()
+	}
+	return count + 1
 }

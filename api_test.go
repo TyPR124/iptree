@@ -1,7 +1,9 @@
 package iptree_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"iptree"
 	"net"
 	"reflect"
@@ -394,11 +396,46 @@ func TestFind(t *testing.T) {
 	}
 	tstring := ""
 
-	tree.Traverse(func(ipnet net.IPNet, value interface{}, distance int) {
+	err = tree.Traverse(func(ipnet net.IPNet, value interface{}, distance int) error {
 		tstring += fmt.Sprintf("%v%v: %v\n", strings.Repeat(" ", distance), ipnet.String(), value)
+		return nil
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	if tstring != "0.0.0.0/0: default\n 192.168.0.0/16: 0.0/16\n  192.168.0.1/32: 0.1/32\n  192.168.0.2/32: 0.2/32\n  192.168.2.0/24: 2.0/24\n   192.168.2.0/25: 2.0/25\n  192.168.3.0/24: 3.0/24\n  192.168.4.0/23: 4.0/23\n  192.168.6.0/23: 6.0/23\n   192.168.6.0/24: 6.0/24\n" {
 		t.Error(tstring)
 	}
+
+	var sbuf bytes.Buffer
+	err = iptree.Serialize(tree, &sbuf, func(v interface{}, out io.Writer) error {
+		_, err := io.WriteString(out, v.(string))
+		return err
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	tree, err = iptree.Deserialize(&sbuf, func(b []byte) (interface{}, error) {
+		return string(b), nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	tstring2 := ""
+	err = tree.Traverse(func(ipnet net.IPNet, value interface{}, distance int) error {
+		tstring2 += fmt.Sprintf("%v%v: %v\n", strings.Repeat(" ", distance), ipnet.String(), value)
+		return nil
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if tstring2 != tstring {
+		t.Error(tstring2)
+	}
+
 }

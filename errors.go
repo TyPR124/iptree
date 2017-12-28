@@ -11,6 +11,8 @@ var ErrWrongIPLength = errors.New("IP length does not match root's IP length")
 //ErrNotFound indicates the requested element was not found in the tree
 var ErrNotFound = errors.New("Could not find element")
 
+var ErrInvalidData = errors.New("Invalid data")
+
 //ErrNewRoot indicates an insertion caused a new root element to be created
 type ErrNewRoot struct {
 	NewRoot Root

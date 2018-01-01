@@ -3,12 +3,12 @@ package iptree_test
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"iptree"
 	"net"
 	"reflect"
 	"strings"
 	"testing"
+
+	"iptree"
 )
 
 func TestFind(t *testing.T) {
@@ -409,9 +409,8 @@ func TestFind(t *testing.T) {
 	}
 
 	var sbuf bytes.Buffer
-	err = iptree.Serialize(tree, &sbuf, func(v interface{}, out io.Writer) error {
-		_, err := io.WriteString(out, v.(string))
-		return err
+	err = iptree.Serialize(tree, &sbuf, func(v interface{}) ([]byte, error) {
+		return []byte(v.(string)), nil
 	})
 	if err != nil {
 		t.Error(err)

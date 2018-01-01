@@ -26,7 +26,7 @@ func NewRoot(ipnet net.IPNet, rootValue interface{}) Root {
 //If any (non-nil) error is returned, Root.Traverse() will terminate.
 type Traverser func(ipnet net.IPNet, value interface{}, distance int) error
 
-type ValueSerializer func(value interface{}, out io.Writer) error
+type ValueSerializer func(value interface{}) ([]byte, error)
 
 type ValueDeserializer func(vbytes []byte) (value interface{}, e error)
 

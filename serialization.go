@@ -1,7 +1,6 @@
 package iptree
 
 import (
-	"bytes"
 	"encoding/binary"
 	"io"
 	"net"
@@ -24,7 +23,6 @@ func serialize(root Root, out io.Writer, serializer ValueSerializer) error {
 	if err := binary.Write(out, binary.BigEndian, uint16(iplen)); err != nil {
 		return err
 	}
-	var buf bytes.Buffer
 	lastd := -1
 	if err := root.Traverse(func(ipnet net.IPNet, value interface{}, distance int) error {
 		//For all serialization, double check IP and mask lens
@@ -56,16 +54,15 @@ func serialize(root Root, out io.Writer, serializer ValueSerializer) error {
 		}
 
 		//Value
-		buf.Reset()
-		if err := serializer(value, &buf); err != nil {
+		vbuf, err := serializer(value)
+		if err != nil {
 			return err
 		}
-		vbytes := buf.Bytes()
-		vlen := uint16(len(vbytes))
+		vlen := uint16(len(vbuf))
 		if err := binary.Write(out, binary.BigEndian, vlen); err != nil {
 			return err
 		}
-		return binary.Write(out, binary.BigEndian, vbytes)
+		return binary.Write(out, binary.BigEndian, vbuf)
 	}); err != nil {
 		return err
 	}

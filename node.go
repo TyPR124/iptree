@@ -2,6 +2,9 @@ package iptree
 
 import "net"
 
+//A node in the tree.
+//Every node is technically a Root.
+//See API documentation for info on exported functions in this file.
 type node struct {
 	net.IPNet
 	value    interface{}
@@ -12,9 +15,6 @@ func makeNode(ipnet net.IPNet, value interface{}, children []*node) *node {
 	return &node{ipnet, value, children}
 }
 
-//Find an element at IPNet.
-//If allowSupernet is false, the function will only return an exact IPNet match
-//If allowSupernet is true, the function will return an exact match or a matching supernet
 func (n *node) Find(ipnet net.IPNet, allowSupernet bool) (value interface{}, err error) {
 	if !sameIPLen(n.IPNet, ipnet) {
 		return nil, ErrWrongIPLength
@@ -33,8 +33,9 @@ func (n *node) Insert(ipnet net.IPNet, value interface{}) error {
 		return ErrWrongIPLength
 	}
 
-	p, atIndex, nChildren, _, _, err := n.findForInsertion(ipnet)
-	if err == ErrNotFound && ipnet.Contains(n.IP) {
+	p, atIndex, nChildren, _, amChild, err := n.findForInsertion(ipnet)
+	if err == ErrNotFound && amChild {
+		//The node to be inserted can be a new root
 		return ErrNewRoot{makeNode(ipnet, value, []*node{n})}
 	} else if err != nil {
 		return err
@@ -56,8 +57,6 @@ func (n *node) Insert(ipnet net.IPNet, value interface{}) error {
 	return nil
 }
 
-//Remove deletes an element at IPNet
-//If ipnet happens to be the root element, then set root value to nil and return ErrRootRemoved
 func (n *node) Remove(ipnet net.IPNet) error {
 	if !sameIPLen(n.IPNet, ipnet) {
 		return ErrWrongIPLength
@@ -79,18 +78,26 @@ func (n *node) Remove(ipnet net.IPNet) error {
 		return nil
 	}
 
-	//If we got here without return, and n != rem, then my logic is bad
+	//No parent was found, but no error means that the node to be removed is this node
+	//In otherwords, rem must be equal to n
 	if n != rem {
 		panic("n != rem in Remove function")
 	}
 
-	return ErrRemovedRoot{n.children}
+	//Every child of this node is now a root
+	newRoots := make([]Root, len(n.children))
+	for i, n := range n.children {
+		newRoots[i] = n
+	}
+
+	return ErrRemovedRoot{newRoots}
 }
 
 func (n *node) Traverse(f Traverser) error {
 	return n.traverseRecursively(f, 0)
 }
 
+//traverseRecursively is the implimentation used for Traverse
 func (n *node) traverseRecursively(f Traverser, dist int) error {
 	if err := f(n.IPNet, n.value, dist); err != nil {
 		return err

@@ -2,9 +2,12 @@ package iptree
 
 import "net"
 
-//Same as Find, but returns a node instead of a value
-//Also takes caller and index arguments which should only be used when calling recursively
-//Also returns the parent of the node found, if there is one
+//Recursively look for a node to be removed.
+//Must be an exact match.
+//caller and index are intended for recursive calls only.
+//Returns the node to be removed, the parent node, and the index where
+//the node to be removed exists within the parent.children slice.
+//If n is the node to be removed, caller and index are passed through and returned as parent and childIndex
 func (n *node) findForRemoval(mark net.IPNet, caller *node, index int) (vnode *node, parent *node, childIndex int, err error) {
 	maskdiff := compareMask(n.Mask, mark.Mask)
 
@@ -37,50 +40,70 @@ func (n *node) findForRemoval(mark net.IPNet, caller *node, index int) (vnode *n
 	return nil, nil, -1, ErrNotFound
 }
 
-//Same as Find, but returns a node instead of a value
-//Returns the parent to insert in, at what index (-1 if the parent is actually the node to overwrite), and how many children to move
-//checkNext and amChild are for recusive calls only
+//Recursively look for a place to insert a node.
+//Returns:
+// parent: the parent in which to insert the new node
+// atIndex: where to insert the node
+// numChildren: the number of children currently belonging to parent that must be moved to the new node
+// checkNext: for recursive calls only. Whether we should check the next child
+// amChild: true if n is a child of mark
+// err: error
 func (n *node) findForInsertion(mark net.IPNet) (parent *node, atIndex, numChildren int, checkNext, amChild bool, err error) {
 	maskdiff := compareMask(n.Mask, mark.Mask)
 	ipdiff := compareIP(n.IP, mark.IP)
+
+	//Return values
+	parent = nil
+	atIndex = -1
+	numChildren = 0
+	checkNext = ipdiff < 0
+	amChild = false
+	err = nil
 
 	//Check next child only if we are less than mark
 
 	if maskdiff == 0 { //Mask is the same...
 		if ipdiff == 0 { //And netw addr is the same, therefore I am an exact match
-			return n, -1, 0, false, false, nil
+			parent = n
+			return
 		}
 		//And netw addr is different, therefore we do not contain it so it cannot be found
 		//Check next child only if we are less than mark
-		checkNext = (ipdiff < 0)
-		return nil, -1, 0, checkNext, false, ErrNotFound
+		err = ErrNotFound
+		return
 	}
 
 	checkNext = (ipdiff < 0)
 
 	if maskdiff > 0 { //My mask is more specific, therefore it might contain me
-		return nil, -1, 0, checkNext, mark.Contains(n.IP), ErrNotFound
+		amChild = mark.Contains(n.IP)
+		err = ErrNotFound
+		return
 	}
 
 	//Mark's mask is more specific...
-	amChild = false
 
 	if !n.Contains(mark.IP) { //but I do not contain it
-		return nil, -1, 0, checkNext, false, ErrNotFound
+		err = ErrNotFound
+		return
 	}
 
 	//I contain it, therefore I am a supernet...
 	//A child might contain it, or it may contain a set of my children
+
+	checkNext = false
 
 	foundChild := false
 	chInd := 0
 	nCh := 0
 
 	for i, c := range n.children { //I might have a child who can find it
-		parent, atIndex, numChildren, checkNext, isChild, _ := c.findForInsertion(mark)
+		var doCheckNext, isChild bool
+		//Avoid using := on recursive call, it causes parent, atIndex, numChildren to become new variables, shadowing the actual return variables
+		parent, atIndex, numChildren, doCheckNext, isChild, _ = c.findForInsertion(mark)
 
 		if parent != nil { //The child found it
-			return parent, atIndex, numChildren, false, false, nil
+			return
 		}
 
 		if isChild {
@@ -92,22 +115,33 @@ func (n *node) findForInsertion(mark net.IPNet) (parent *node, atIndex, numChild
 			continue //Get all consecutive children
 		}
 
-		if !checkNext { //If this child is too high, insert at this index
+		if !doCheckNext { //If this child is too high, insert at this index
+			parent = n
 			if foundChild {
-				return n, chInd, nCh, false, false, nil
+				atIndex = chInd
+				numChildren = nCh
+				return
 			}
-			return n, i, 0, false, false, nil
+			atIndex = i
+			return
 		}
 	}
 
-	//I have no children, or no children are higher than it
-	//If mark has children, then return that info
-	if foundChild {
-		return n, chInd, nCh, false, false, nil
+	if foundChild { //If a child was found but we fell through the loop before returning
+		//then return now
+		parent = n
+		atIndex = chInd
+		numChildren = nCh
+		return
 	}
-	return n, len(n.children), 0, false, false, nil
+
+	//I have no children, or no children are higher than it, so insert it last
+	parent = n
+	atIndex = len(n.children)
+	return
 }
 
+//Recursively find a node.
 func (n *node) findNode(mark net.IPNet, allowSupernet bool) (vnode *node, err error) {
 	maskdiff := compareMask(n.Mask, mark.Mask)
 
@@ -131,7 +165,6 @@ func (n *node) findNode(mark net.IPNet, allowSupernet bool) (vnode *node, err er
 	//I contain it, therefore I am a supernet...
 	for _, c := range n.children { //and I might have a child who can find it
 		vnode, err = c.findNode(mark, allowSupernet)
-
 		if vnode != nil { //The child found it
 			return
 		}

@@ -15,11 +15,19 @@ func TestFind(t *testing.T) {
 	//Default root
 	tree := iptree.NewDefaultRoot(net.IPv4len, "test")
 
+	if c := tree.Count(); c != 1 {
+		t.Errorf("Got count of %v", c)
+	}
+
 	//Root of 192.168.0.0/16, IPv4
 	tree = iptree.NewRoot(net.IPNet{
 		IP:   []byte{192, 168, 0, 0},
 		Mask: []byte{255, 255, 0, 0},
 	}, "mytree")
+
+	if c := tree.Count(); c != 1 {
+		t.Errorf("Got count of %v", c)
+	}
 
 	//Find with allowSupernet
 	v, err := tree.Find(net.IPNet{
@@ -79,6 +87,11 @@ func TestFind(t *testing.T) {
 
 	if err != nil {
 		t.Error(err)
+	}
+
+	//Expect 2 nodes at this point
+	if c := tree.Count(); c != 2 {
+		t.Errorf("Got count of %v", c)
 	}
 
 	//Find 192.168.2.1/32, allowSuper
@@ -226,6 +239,11 @@ func TestFind(t *testing.T) {
 
 	if err != nil {
 		t.Error(err)
+	}
+
+	//Expect 9 nodes
+	if c := tree.Count(); c != 9 {
+		t.Errorf("Got count of %v", c)
 	}
 
 	//Find 192.168.2.0/24, no super
